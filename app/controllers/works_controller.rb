@@ -22,6 +22,7 @@ class WorksController < ApplicationController
   def create
     @work = Work.new(media_params)
     @media_category = @work.category
+    @work.owner = @login_user.id
     if @work.save
       flash[:status] = :success
       flash[:result_text] = "Successfully created #{@media_category.singularize} #{@work.id}"
@@ -39,27 +40,53 @@ class WorksController < ApplicationController
   end
 
   def edit
-  end
-
-  def update
-    @work.update_attributes(media_params)
-    if @work.save
-      flash[:status] = :success
-      flash[:result_text] = "Successfully updated #{@media_category.singularize} #{@work.id}"
-      redirect_to work_path(@work)
-    else
+    unless @work.owner == @login_user.id
+      flash.now[:result_text] = "Could not update #{@media_category.singularize}"
       flash.now[:status] = :failure
       flash.now[:result_text] = "Could not update #{@media_category.singularize}"
       flash.now[:messages] = @work.errors.messages
-      render :edit, status: :not_found
+      redirect_to works_path
     end
+
+  end
+
+  def update
+    @work = Work.find_by(id: params[:id])
+      @work.update_attributes(media_params)
+      if @work.save
+        flash[:status] = :success
+        flash[:result_text] = "Successfully updated #{@media_category.singularize} #{@work.id}"
+        redirect_to work_path(@work)
+      else
+        flash.now[:status] = :failure
+        flash.now[:result_text] = "Could not update #{@media_category.singularize}"
+        flash.now[:messages] = @work.errors.messages
+        render :edit, status: :not_found
+      end
+    # else
+    #   flash.now[:status] = :failure
+    #   flash.now[:result_text] = "Could not update #{@media_category.singularize}"
+    #   flash.now[:messages] = @work.errors.messages
+    #   redirect_to works_path
+
   end
 
   def destroy
-    @work.destroy
-    flash[:status] = :success
-    flash[:result_text] = "Successfully destroyed #{@media_category.singularize} #{@work.id}"
-    redirect_to root_path
+    @work = Work.find_by(id: params[:id])
+    # binding.pry
+    if @work.owner == @login_user.id
+      puts "WERE GETTING INTO THE IF LOOP IN DESTROY"
+      @work.destroy
+      flash[:status] = :success
+      flash[:result_text] = "Successfully destroyed #{@media_category.singularize} #{@work.id}"
+      redirect_to root_path
+    else
+      puts "WERE GETTING INTO THE ELSE LOOP IN DESTROY"
+      flash.now[:status] = :failure
+      flash.now[:result_text] = "Could not update #{@media_category.singularize}"
+      flash.now[:messages] = @work.errors.messages
+      redirect_to works_path
+    end
   end
 
   def upvote
@@ -68,7 +95,7 @@ class WorksController < ApplicationController
     # For status codes, see
     # http://stackoverflow.com/questions/3825990/http-response-code-for-post-when-resource-already-exists
     flash[:status] = :failure
-    if @login_user
+    if @login_user.id
       vote = Vote.new(user: @login_user, work: @work)
       if vote.save
         flash[:status] = :success
@@ -89,7 +116,10 @@ class WorksController < ApplicationController
     redirect_back fallback_location: work_path(@work), status: status
   end
 
+
 private
+
+
   def media_params
     params.require(:work).permit(:title, :category, :creator, :description, :publication_year)
   end
